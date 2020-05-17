@@ -2,7 +2,6 @@ package com.schemagames.lang
 
 import com.schemagames.lang.interpreter.Interpreter
 import com.schemagames.lang.parser.{ASTParser, TokenLexer}
-import com.schemagames.lang.syntax.Token
 
 object test {
   val n1 =

@@ -3,6 +3,7 @@ package com.schemagames.lang.parser
 import com.schemagames.lang.syntax.{IndentationType, NoIndent, Spaces, Tabs, Token}
 import com.schemagames.lang.syntax.Tokens._
 
+import scala.annotation.tailrec
 import scala.util.matching.Regex
 import scala.util.parsing.combinator.RegexParsers
 
@@ -15,9 +16,7 @@ object TokenLexer extends RegexParsers {
   }
 
   // Skip most leading whitespace, but not \n newlines
-  // Also, don't skip leading whitespace when lexing the first indentation on a line
-  override def skipWhitespace: Boolean = skipWhiteSpaceOverride.getOrElse(true)
-  var skipWhiteSpaceOverride: Option[Boolean] = None
+  override def skipWhitespace: Boolean = true
   override val whiteSpace: Regex = "[ \t\r\f]+".r
 
   def tokens: Parser[List[Token]] = phrase(rep1(
@@ -41,34 +40,29 @@ object TokenLexer extends RegexParsers {
   def assign: Parser[Assign] = positioned("=" ^^ (_ => Assign()))
   def delimiter: Parser[Delimit] = positioned(";" ^^ (_ => Delimit()))
 
-  def newlineWithIndentation: Parser[Indentation] = positioned(indentBySpaces | indentByTabs | failIndentByMixedWhitespace)
-  def indentBySpaces: Parser[Indentation] = indentByChar(Spaces, " ")
-  def indentByTabs: Parser[Indentation] = indentByChar(Tabs, "\t")
-  def indentByChar(indentType: IndentationType, regexChar: String): Parser[Indentation] = s"\n[$regexChar]*".r ^^ (str => {
-    val numChars = str.length()
-    Indentation(str.length - 1, if(numChars == 0) NoIndent else indentType)
-  })
-  // Always fails, as this is explicitly prohibited
-  def failIndentByMixedWhitespace: Parser[Nothing] = ("\n[ \t]*".r ^^ { str => // Mixed whitespace - this is a failure!
-    val (numSpaces, numTabs) = str.foldLeft((0,0)) { case ((curNumSpaces, curNumTabs), next) => next match {
+  def newlineWithIndentation: Parser[Indentation] = positioned(indentByMixedWhitespace)
+  def indentByMixedWhitespace: Parser[Indentation] = "\n[ \t]*".r >> { str => // Mixed whitespace - this is a failure!
+    val (numSpaces, numTabs) = str.drop(1).foldLeft((0,0)) { case ((curNumSpaces, curNumTabs), next) => next match {
       case ' '  => (curNumSpaces + 1, curNumTabs    )
       case '\t' => (curNumSpaces    , curNumTabs + 1)
       case _    => (curNumSpaces    , curNumTabs    )
     }}
 
-    (numSpaces, numTabs)
-  }) >> { case (numSpaces, numTabs) =>  failure(
-    s"expected indentation with only spaces or only tabs, got $numSpaces spaces and $numTabs tabs"
-  ) }
+    (numSpaces, numTabs) match {
+      case (0, 0) => success(Indentation(0, NoIndent))
+      case (0, t) => success(Indentation(t, Tabs))
+      case (s, 0) => success(Indentation(s, Spaces))
+      case (s, t) => failure(s"expected indentation with only spaces or only tabs, got $s spaces and $t tabs")
+    }
+  }
 
   // Convert Indentation of specific amounts into indents and outdents
   // If within a given "indentation block" we find mixed indentation types, the parser fails
-  // TODO: Avoid ..., Outdent(), Indent(), ...
   def processIndentation(
     tokens: List[Token],
     indentStack: List[(Int, IndentationType)] = List((0, NoIndent))
   ): Either[String, List[Token]] = tokens.headOption match {
-    case None => Right(indentStack.map(_ => Outdent()))
+    case None => Right(indentStack.drop(1).map(_ => Outdent()))
     case Some(Indentation(amt, indentType)) => indentStack.head match {
       // Mixed indentation error
       case (_, prevIndentType) if {
@@ -87,17 +81,33 @@ object TokenLexer extends RegexParsers {
           (dropped.map(_ => Outdent()), kept)
         } else {
           // Staying at the same level of indentation
-          (Nil, indentStack)
+          (List(Delimit()), indentStack)
         }
 
         for {
           indentedTokens <- processIndentation(tokens.drop(1), newIndentStack)
-        } yield newTokens ++ indentedTokens
+        } yield {
+          normalizeIndentationAndDelimiters(newTokens, indentedTokens)
+        }
       }
     }
     // Other tokens are just kept without any indentation tokens replacing them
     case Some(otherToken) => for {
       indentedTokens <- processIndentation(tokens.drop(1), indentStack)
     } yield otherToken :: indentedTokens
+  }
+
+
+  // While combining indentation tokens, remove adjacent Indents/Outdents
+  // They "cancel" each other out, if no tokens exist in between them
+  // We know newTokens are all of the same type, so removing from the front is fine
+  @tailrec
+  def normalizeIndentationAndDelimiters(newTokens: List[Token], indentedTokens: List[Token]): List[Token] = {
+    (newTokens, indentedTokens) match {
+      case (Delimit() :: restNewTokens, Delimit() :: restTokens) => normalizeIndentationAndDelimiters(restNewTokens, restTokens)
+      case (Outdent() :: restNewTokens, Indent() :: restTokens) => normalizeIndentationAndDelimiters(restNewTokens, Delimit() :: restTokens)
+      case (Indent() :: restNewTokens, Outdent() :: restTokens) => normalizeIndentationAndDelimiters(restNewTokens, Delimit() :: restTokens)
+      case (otherNewTokens, indentedTokens) => otherNewTokens ++ indentedTokens
+    }
   }
 }
