@@ -1,6 +1,6 @@
 package com.schemagames.lang.parser
 
-import com.schemagames.lang.syntax.Tokens.{Indent, Newline, OpenBlock, Outdent}
+import com.schemagames.lang.syntax.Tokens.{Indent, NumLiteral, OpenBlock, Outdent}
 import org.scalatest._
 import org.scalatest.matchers.should.Matchers
 
@@ -32,11 +32,11 @@ class TokenLexerSpec extends FlatSpec with Matchers {
     results shouldBe a [Right[_, _]]
 
     val Right(tokens) = results
-    val afterFirstNewline = tokens.dropWhile(_ != Newline()).drop(1)
+    val afterFirstNewline = tokens.dropWhile(_ != OpenBlock()).drop(1)
 
     afterFirstNewline.headOption should be (Some(Indent()))
 
-    val afterSecondNewline = afterFirstNewline.dropWhile(_ != Newline()).drop(1)
+    val afterSecondNewline = afterFirstNewline.dropWhile(_ != NumLiteral("1")).drop(1)
 
     afterSecondNewline.headOption should be (Some(Outdent()))
   }
