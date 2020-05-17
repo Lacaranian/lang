@@ -51,7 +51,9 @@ object ASTParser extends Parsers {
       case _ ~ defs ~ expr ~ _ => BlockExpression(defs, expr)
     }
   }
-  def termExpression: Parser[TermExpression] = positioned(term ^^ (term => TermExpression(term)))
+  def termExpression: Parser[TermExpression] = positioned(term ~ Delimit() ^^ {
+    case term ~ _ => TermExpression(term)
+  })
 
   def term: Parser[Term] = positioned(constant | variableTerm)
   def variableTerm: Parser[VariableTerm] = positioned(variable ^^ (variable => VariableTerm(variable)))

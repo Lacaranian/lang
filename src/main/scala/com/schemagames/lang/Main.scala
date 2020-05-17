@@ -1,7 +1,7 @@
 package com.schemagames.lang
 
 import com.schemagames.lang.interpreter.Interpreter
-import com.schemagames.lang.parser.{ASTParser, TokenLexer}
+import com.schemagames.lang.parser.{ASTParser, LexerToParser, TokenLexer}
 
 object test {
   val n1 =
@@ -22,7 +22,9 @@ object Main {
     val result = for {
       tokens <- TokenLexer(test.n1)
       _ = println(tokens)
-      ast <- ASTParser(tokens)
+      syntaxReadyTokens = LexerToParser(tokens)
+      _ = println(syntaxReadyTokens)
+      ast <- ASTParser(syntaxReadyTokens)
       _ = println(ast)
       result <- Interpreter(ast)
     } yield result
