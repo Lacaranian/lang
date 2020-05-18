@@ -19,7 +19,7 @@ class TokenLexerSpec extends FlatSpec with Matchers {
     val Right(tokens) = results
     val afterFirstNewline = tokens.dropWhile(_ != OpenBlock()).drop(1)
 
-    afterFirstNewline.headOption should be (Some(Indent()))
+    afterFirstNewline.headOption should be (Some(Def()))
 
     val atSecondNewline = afterFirstNewline.dropWhile(_ != NumLiteral("1")).drop(1)
 
@@ -27,7 +27,7 @@ class TokenLexerSpec extends FlatSpec with Matchers {
 
     val afterThingNewline = atSecondNewline.dropWhile(_ != Identifier("thing")).drop(1)
 
-    afterThingNewline.headOption should be (Some(Outdent()))
+    afterThingNewline.headOption should be (Some(Delimit()))
   }
 
   it should "sustain indentation across empty lines" in {
@@ -37,7 +37,7 @@ class TokenLexerSpec extends FlatSpec with Matchers {
     val Right(tokens) = results
     val afterFirstNewline = tokens.dropWhile(_ != OpenBlock()).drop(1)
 
-    afterFirstNewline.headOption should be (Some(Indent()))
+    afterFirstNewline.headOption should be (Some(Def()))
 
     val afterSecondNewline = afterFirstNewline.dropWhile(_ != NumLiteral("1")).drop(1)
 
@@ -49,7 +49,7 @@ class TokenLexerSpec extends FlatSpec with Matchers {
     afterThing2Line.drop(1).headOption should be (Some(Identifier("thing2")))
 
     val afterFinalExpressionLine = afterThing2Line.dropWhile(_ != Identifier("thing2")).drop(1)
-    afterFinalExpressionLine.headOption should be (Some(Outdent()))
+    afterFinalExpressionLine.headOption should be (Some(Delimit()))
   }
 
   it should "prevent mixing of tabs and spaces in indentation" in {

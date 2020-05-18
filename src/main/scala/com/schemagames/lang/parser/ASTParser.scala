@@ -51,7 +51,7 @@ object ASTParser extends Parsers {
       case _ ~ defs ~ expr ~ _ => BlockExpression(defs, expr)
     }
   }
-  def termExpression: Parser[TermExpression] = positioned((groupedExpression | term) ~ Delimit() ^^ {
+  def termExpression: Parser[TermExpression] = positioned((groupedExpression | term) ~ (Delimit() | eoi) ^^ {
     case term ~ _ => TermExpression(term)
   })
   def groupedExpression: Parser[Term] = positioned(OpenExpr() ~ term ~ CloseExpr() ^^ {
@@ -69,6 +69,12 @@ object ASTParser extends Parsers {
   def constant: Parser[Constant] = positioned(stringConstant | numConstant)
   def stringConstant: Parser[StringConstant] = positioned(accept("string constant", { case StringLiteral(str) => StringConstant(str) }))
   def numConstant: Parser[NumberConstant] = positioned(accept("number constant", { case NumLiteral(str) => NumberConstant(str.toInt) }))
+
+  def eoi: Parser[Delimit] = new Parser[Delimit]{
+    def apply(in: Input): ParseResult[Delimit] = {
+      if(in.atEnd) Success(Delimit(), in) else Failure("expected end of input", in)
+    }
+  }
 
   def makeApplicationsLeftAssociative(term: Term): Term = {
     val (first, rest) = unrollAppliedTerms(term)

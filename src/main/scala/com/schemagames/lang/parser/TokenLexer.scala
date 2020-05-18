@@ -26,8 +26,9 @@ object TokenLexer extends RegexParsers {
   )) >> { rawTokens => {
     val tokenResult = for {
       indentedTokens <- processIndentation(rawTokens)
-      delimitedTokens <- processDuplicateDelimiters(indentedTokens)
-    } yield delimitedTokens
+      delimitedTokens = indentationToDelimiting(indentedTokens)
+      minimalDelimitedTokens = processDuplicateDelimiters(delimitedTokens)
+    } yield minimalDelimitedTokens
 
     tokenResult match {
       case Left(errMsg) => err(errMsg)
@@ -121,7 +122,13 @@ object TokenLexer extends RegexParsers {
     }
   }
 
-  def processDuplicateDelimiters[A](tokens: List[Token]): Either[A, List[Token]] = Right[A, List[Token]] {
+  def indentationToDelimiting(tokens: List[Token]): List[Token] = tokens.flatMap({
+    case Indent() => None
+    case Outdent() => Some(Delimit())
+    case other => Some(other)
+  })
+
+  def processDuplicateDelimiters[A](tokens: List[Token]): List[Token] = {
     val (processedTokens, _) = tokens.foldLeft(List.empty[Token] -> false) {
       case ((processedTokens, true ), Delimit()) => (processedTokens             , true)
       case ((processedTokens, false), Delimit()) => (processedTokens :+ Delimit(), true)
