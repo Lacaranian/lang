@@ -6,6 +6,7 @@ import com.schemagames.lang.syntax.Tokens._
 import scala.annotation.tailrec
 import scala.util.matching.Regex
 import scala.util.parsing.combinator.RegexParsers
+import scala.util.parsing.combinator.token.Tokens
 
 object TokenLexer extends RegexParsers {
   def apply(code: String): Either[TokenLexerError, List[Token]] = {
@@ -20,9 +21,15 @@ object TokenLexer extends RegexParsers {
   override val whiteSpace: Regex = "[ \t\r\f]+".r
 
   def tokens: Parser[List[Token]] = phrase(rep1(
-    assign | delimiter | openBlock | closeBlock | `def` | numLiteral | stringLiteral | identifier | newlineWithIndentation
+    assign | delimiter | openBlock | closeBlock | openExpr | closeExpr | `def` |
+      numLiteral | stringLiteral | identifier | newlineWithIndentation
   )) >> { rawTokens => {
-    processIndentation(rawTokens) match {
+    val tokenResult = for {
+      indentedTokens <- processIndentation(rawTokens)
+      delimitedTokens <- processDuplicateDelimiters(indentedTokens)
+    } yield delimitedTokens
+
+    tokenResult match {
       case Left(errMsg) => err(errMsg)
       case Right(tokens) => success(tokens)
     }
@@ -36,9 +43,12 @@ object TokenLexer extends RegexParsers {
 
   def openBlock: Parser[OpenBlock] = positioned("{" ^^ (_ => OpenBlock()))
   def closeBlock: Parser[CloseBlock] = positioned("}" ^^ (_ => CloseBlock()))
+  def openExpr: Parser[OpenExpr] = positioned("(" ^^ (_ => OpenExpr()))
+  def closeExpr: Parser[CloseExpr] = positioned(")" ^^ (_ => CloseExpr()))
   def `def`: Parser[Def] = positioned("def" ^^ (_ => Def()))
   def assign: Parser[Assign] = positioned("=" ^^ (_ => Assign()))
   def delimiter: Parser[Delimit] = positioned(";" ^^ (_ => Delimit()))
+  //def arrow: Parser[Arrow] = positioned("->" ^^ (_ => Arrow()))
 
   def newlineWithIndentation: Parser[Indentation] = positioned(indentByMixedWhitespace)
   def indentByMixedWhitespace: Parser[Indentation] = "\n[ \t]*".r >> { str => // Mixed whitespace - this is a failure!
@@ -109,5 +119,15 @@ object TokenLexer extends RegexParsers {
       case (Indent() :: restNewTokens, Outdent() :: restTokens) => normalizeIndentationAndDelimiters(restNewTokens, Delimit() :: restTokens)
       case (otherNewTokens, indentedTokens) => otherNewTokens ++ indentedTokens
     }
+  }
+
+  def processDuplicateDelimiters[A](tokens: List[Token]): Either[A, List[Token]] = Right[A, List[Token]] {
+    val (processedTokens, _) = tokens.foldLeft(List.empty[Token] -> false) {
+      case ((processedTokens, true ), Delimit()) => (processedTokens             , true)
+      case ((processedTokens, false), Delimit()) => (processedTokens :+ Delimit(), true)
+      case ((processedTokens, _    ), other    ) => (processedTokens :+ other    , false)
+    }
+
+    processedTokens
   }
 }

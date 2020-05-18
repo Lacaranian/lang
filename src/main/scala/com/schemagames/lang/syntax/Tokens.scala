@@ -11,9 +11,13 @@ object Tokens {
 
   case class OpenBlock()   extends Token // {
   case class CloseBlock()  extends Token // }
+  case class OpenExpr()    extends Token // (
+  case class CloseExpr()   extends Token // )
   case class Def()         extends Token // def
   case class Assign()      extends Token // =
   case class Delimit()     extends Token // ; or newlines with sustained indentation (outdents are also semantically delimiters)
+  case class Lambda()      extends Token // \ or λ
+  case class Arrow()       extends Token // ->
 
   case class Indentation(num: Int, indentationType: IndentationType) extends Token // \n plus some number of spaces/tabs...
   case class Indent()         extends Token // ... greater then the previous significant line's

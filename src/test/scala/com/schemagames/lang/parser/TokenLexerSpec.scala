@@ -1,36 +1,19 @@
 package com.schemagames.lang.parser
 
-import com.schemagames.lang.syntax.Tokens.{Def, Delimit, Identifier, Indent, NumLiteral, OpenBlock, Outdent}
+import com.schemagames.lang.TestPrograms
+import com.schemagames.lang.syntax.Tokens._
 import org.scalatest._
 import org.scalatest.matchers.should.Matchers
 
 class TokenLexerSpec extends FlatSpec with Matchers {
 
   "The TokenLexer" should "be able to turn a valid input program into tokens" in {
-    val program =
-      """def testProgram = {
-        |  def floop = 123
-        |  def bloop = floop; def ploop = snoop;
-        |  def noop = "nope"
-        |
-        |  noop
-        |}
-        |
-        |def main = testProgram
-        |""".stripMargin
-
-    val results = TokenLexer(program)
+    val results = TokenLexer(TestPrograms.generalTestProgram)
     results shouldBe a [Right[_, _]]
   }
 
   it should "recognize indentation and outdentation after newlines" in {
-    val program =
-      """def program = {
-        |  def thing = 1
-        |
-        |  thing
-        |}""".stripMargin
-    val results = TokenLexer(program)
+    val results = TokenLexer(TestPrograms.simpleWhitespace)
     results shouldBe a [Right[_, _]]
 
     val Right(tokens) = results
@@ -48,17 +31,7 @@ class TokenLexerSpec extends FlatSpec with Matchers {
   }
 
   it should "sustain indentation across empty lines" in {
-    val program =
-      """def program = {
-        |  def thing = 1
-        |
-        |  def thing2 = 2
-        |
-        |
-        |
-        |  thing2
-        |}""".stripMargin
-    val results = TokenLexer(program)
+    val results = TokenLexer(TestPrograms.longerWhitespace)
     results shouldBe a [Right[_, _]]
 
     val Right(tokens) = results
@@ -80,8 +53,21 @@ class TokenLexerSpec extends FlatSpec with Matchers {
   }
 
   it should "prevent mixing of tabs and spaces in indentation" in {
-    val program = "def testProgram = {\n  \t  def something = 123\n\t  something\n}"
-    val results = TokenLexer(program)
+    val results = TokenLexer(TestPrograms.invalidIndentation)
     results shouldBe a [Left[_, _]]
+  }
+
+  it should "collapse multiple adjacent delimiters" in {
+    val results = TokenLexer(TestPrograms.explicitDelimiterTest)
+    results shouldBe a [Right[_,_]]
+
+    val Right(tokens) = results
+
+    var remainingTokens = tokens
+    while(remainingTokens.nonEmpty) {
+      remainingTokens = remainingTokens.dropWhile(_ != Delimit()).drop(1)
+
+      remainingTokens.headOption should not be (Some(Delimit()))
+    }
   }
 }

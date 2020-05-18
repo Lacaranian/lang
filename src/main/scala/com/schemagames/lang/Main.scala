@@ -7,7 +7,7 @@ object test {
   val n1 =
     """def testProgram = {
       |  def floop = 123
-      |  def bloop = floop
+      |  def bloop = floop; def ploop = snoop;
       |  def noop = "nope"
       |
       |  noop
@@ -21,7 +21,6 @@ object Main {
   def main(args: Array[String]): Unit = {
     val result = for {
       tokens <- TokenLexer(test.n1)
-      _ = println(tokens)
       syntaxReadyTokens = LexerToParser(tokens)
       _ = println(syntaxReadyTokens)
       ast <- ASTParser(syntaxReadyTokens)

@@ -5,7 +5,7 @@ import com.schemagames.lang.syntax.Tokens._
 import com.schemagames.lang.syntax.SyntaxTree._
 
 import scala.util.parsing.combinator.Parsers
-import scala.util.parsing.input.{NoPosition, OffsetPosition, Position, Reader}
+import scala.util.parsing.input.{Position, Reader}
 
 case class TokenStreamPosition(tokens: Seq[Token]) extends Position {
   override def line: Int = tokens.headOption.map(_.pos.line).getOrElse(-1)
@@ -51,14 +51,43 @@ object ASTParser extends Parsers {
       case _ ~ defs ~ expr ~ _ => BlockExpression(defs, expr)
     }
   }
-  def termExpression: Parser[TermExpression] = positioned(term ~ Delimit() ^^ {
+  def termExpression: Parser[TermExpression] = positioned((groupedExpression | term) ~ Delimit() ^^ {
     case term ~ _ => TermExpression(term)
   })
+  def groupedExpression: Parser[Term] = positioned(OpenExpr() ~ term ~ CloseExpr() ^^ {
+    case _ ~ term ~ _ => term
+  })
 
-  def term: Parser[Term] = positioned(constant | variableTerm)
+  def term: Parser[Term] = positioned((appliedTerm | nonAppliedTerm) ^^ { term => makeApplicationsLeftAssociative(term) })
+
+  def appliedTerm: Parser[Application] = nonAppliedTerm ~ term ^^ { case left ~ right => Application(left, right) }
+
+  def nonAppliedTerm: Parser[Term] = positioned(lambdaTerm | variableTerm | constant)
+  def lambdaTerm: Parser[Abstraction] = positioned(Lambda() ~ variable ~ Arrow() ~ expression ^^ { case _ ~ param ~ _ ~ expr => Abstraction(param, expr) })
   def variableTerm: Parser[VariableTerm] = positioned(variable ^^ (variable => VariableTerm(variable)))
 
   def constant: Parser[Constant] = positioned(stringConstant | numConstant)
   def stringConstant: Parser[StringConstant] = positioned(accept("string constant", { case StringLiteral(str) => StringConstant(str) }))
   def numConstant: Parser[NumberConstant] = positioned(accept("number constant", { case NumLiteral(str) => NumberConstant(str.toInt) }))
+
+  def makeApplicationsLeftAssociative(term: Term): Term = {
+    val (first, rest) = unrollAppliedTerms(term)
+
+    leftAssociateTermsInApplications(first, rest)
+  }
+
+  def unrollAppliedTerms(term: Term): (Term, List[Term]) = term match {
+    case Application(a, b) => {
+      val (firstLeft, restLeft) = unrollAppliedTerms(a)
+      val (firstRight, restRight) = unrollAppliedTerms(b)
+      (firstLeft, restLeft ++ (firstRight :: restRight))
+    }
+    case t => (t, Nil)
+  }
+
+  def leftAssociateTermsInApplications(firstTerm: Term, restTerms: List[Term]): Term = restTerms match {
+    case Nil        => firstTerm
+    case x ::  Nil  => Application(firstTerm, x)
+    case x ::  rest => leftAssociateTermsInApplications(Application(firstTerm, x), rest)
+  }
 }
