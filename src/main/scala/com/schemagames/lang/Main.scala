@@ -13,7 +13,15 @@ object test {
       |  noop
       |}
       |
-      |def main = testProgram
+      |def S = \x -> (\y -> (\z -> (x y) (y z)))
+      |def K = \x -> (\y -> x)
+      |def I = \x -> x
+      |
+      |def KI = K I
+      |
+      |def testIfStatement = KI "true" "false"
+      |
+      |def main = testIfStatement
       |""".stripMargin
   val n2 = "def test = a b c d"
 }

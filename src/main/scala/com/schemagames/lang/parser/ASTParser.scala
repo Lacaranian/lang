@@ -33,42 +33,39 @@ object ASTParser extends Parsers {
     }
   }
 
-  def ast: Parser[List[SyntaxTree]] = phrase(rep1(definition)) ^^ { rawAST => rawAST }
+  def ast: Parser[List[SyntaxTree]] = phrase(rep1(definition))
 
   override type Elem = Token
 
   def definition: Parser[Definition] = positioned {
-    (Def() ~ variable ~ Assign() ~ expression) ^^ {
-      case _ ~ variable ~ _ ~ expr => Definition(variable, expr)
+    (Def() ~ variable ~ Assign() ~ expressions ~ (Delimit() | eoi)) ^^ {
+      case _ ~ variable ~ _ ~ expr ~ _ => Definition(variable, expr)
     }
   }
   def variable: Parser[Variable] = positioned(identifier ^^ (id => Variable(id.name)))
   private def identifier: Parser[Tokens.Identifier] = positioned(accept("identifier", { case id @ Identifier(_) => id }))
 
-  def expression: Parser[Expression] = positioned(blockExpression | termExpression)
+  def expressions: Parser[Expression] = positioned(rep1(blockExpression | groupedExpression | term) >> {
+    case Nil             => failure("Got no expressions from a successful rep1 parser")
+    case single :: Nil   => success(single)
+    case firstOf :: many => success(leftAssociateExpressionsInApplications(firstOf, many))
+  })
   def blockExpression: Parser[BlockExpression] = positioned{
-    OpenBlock() ~ rep(definition) ~ expression ~ CloseBlock() ^^ {
-      case _ ~ defs ~ expr ~ _ => BlockExpression(defs, expr)
+    OpenBlock() ~ rep(definition) ~ expressions ~ Delimit() ~ CloseBlock() ^^ {
+      case _ ~ defs ~ expr ~ _ ~ _ => BlockExpression(defs, expr)
     }
   }
-  def termExpression: Parser[TermExpression] = positioned((groupedExpression | term) ~ (Delimit() | eoi) ^^ {
-    case term ~ _ => TermExpression(term)
+  def groupedExpression: Parser[Expression] = positioned(OpenExpr() ~ expressions ~ CloseExpr() ^^ {
+    case _ ~ expr ~ _ => expr
   })
-  def groupedExpression: Parser[Term] = positioned(OpenExpr() ~ term ~ CloseExpr() ^^ {
-    case _ ~ term ~ _ => term
-  })
+  def term: Parser[Term] = positioned(lambdaTerm | variableTerm | literal)
 
-  def term: Parser[Term] = positioned((appliedTerm | nonAppliedTerm) ^^ { term => makeApplicationsLeftAssociative(term) })
-
-  def appliedTerm: Parser[Application] = nonAppliedTerm ~ term ^^ { case left ~ right => Application(left, right) }
-
-  def nonAppliedTerm: Parser[Term] = positioned(lambdaTerm | variableTerm | constant)
-  def lambdaTerm: Parser[Abstraction] = positioned(Lambda() ~ variable ~ Arrow() ~ expression ^^ { case _ ~ param ~ _ ~ expr => Abstraction(param, expr) })
+  def lambdaTerm: Parser[Abstraction] = positioned(Lambda() ~ variable ~ Arrow() ~ expressions ^^ { case _ ~ param ~ _ ~ expr => Abstraction(param, expr) })
   def variableTerm: Parser[VariableTerm] = positioned(variable ^^ (variable => VariableTerm(variable)))
 
-  def constant: Parser[Constant] = positioned(stringConstant | numConstant)
-  def stringConstant: Parser[StringConstant] = positioned(accept("string constant", { case StringLiteral(str) => StringConstant(str) }))
-  def numConstant: Parser[NumberConstant] = positioned(accept("number constant", { case NumLiteral(str) => NumberConstant(str.toInt) }))
+  def literal: Parser[Constant] = positioned(stringLiteral | numLiteral)
+  def stringLiteral: Parser[StringConstant] = positioned(accept("string constant", { case StringLiteral(str) => StringConstant(str) }))
+  def numLiteral: Parser[NumberConstant] = positioned(accept("number constant", { case NumLiteral(str) => NumberConstant(str.toInt) }))
 
   def eoi: Parser[Delimit] = new Parser[Delimit]{
     def apply(in: Input): ParseResult[Delimit] = {
@@ -76,24 +73,9 @@ object ASTParser extends Parsers {
     }
   }
 
-  def makeApplicationsLeftAssociative(term: Term): Term = {
-    val (first, rest) = unrollAppliedTerms(term)
-
-    leftAssociateTermsInApplications(first, rest)
-  }
-
-  def unrollAppliedTerms(term: Term): (Term, List[Term]) = term match {
-    case Application(a, b) => {
-      val (firstLeft, restLeft) = unrollAppliedTerms(a)
-      val (firstRight, restRight) = unrollAppliedTerms(b)
-      (firstLeft, restLeft ++ (firstRight :: restRight))
-    }
-    case t => (t, Nil)
-  }
-
-  def leftAssociateTermsInApplications(firstTerm: Term, restTerms: List[Term]): Term = restTerms match {
-    case Nil        => firstTerm
-    case x ::  Nil  => Application(firstTerm, x)
-    case x ::  rest => leftAssociateTermsInApplications(Application(firstTerm, x), rest)
+  def leftAssociateExpressionsInApplications(firstExpr: Expression, restExprs: List[Expression]): Expression = restExprs match {
+    case Nil        => firstExpr
+    case x ::  Nil  => Application(firstExpr, x)
+    case x ::  rest => leftAssociateExpressionsInApplications(Application(firstExpr, x), rest)
   }
 }

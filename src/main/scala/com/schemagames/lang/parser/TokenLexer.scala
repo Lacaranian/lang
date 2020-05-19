@@ -21,7 +21,7 @@ object TokenLexer extends RegexParsers {
   override val whiteSpace: Regex = "[ \t\r\f]+".r
 
   def tokens: Parser[List[Token]] = phrase(rep1(
-    assign | delimiter | openBlock | closeBlock | openExpr | closeExpr | `def` |
+    assign | delimiter | openBlock | closeBlock | openExpr | closeExpr | `def` | lambda | arrow |
       numLiteral | stringLiteral | identifier | newlineWithIndentation
   )) >> { rawTokens => {
     val tokenResult = for {
@@ -49,7 +49,8 @@ object TokenLexer extends RegexParsers {
   def `def`: Parser[Def] = positioned("def" ^^ (_ => Def()))
   def assign: Parser[Assign] = positioned("=" ^^ (_ => Assign()))
   def delimiter: Parser[Delimit] = positioned(";" ^^ (_ => Delimit()))
-  //def arrow: Parser[Arrow] = positioned("->" ^^ (_ => Arrow()))
+  def lambda: Parser[Lambda] = positioned(("\\" | "λ") ^^ (_ => Lambda()))
+  def arrow: Parser[Arrow] = positioned("->" ^^ (_ => Arrow()))
 
   def newlineWithIndentation: Parser[Indentation] = positioned(indentByMixedWhitespace)
   def indentByMixedWhitespace: Parser[Indentation] = "\n[ \t]*".r >> { str => // Mixed whitespace - this is a failure!
@@ -98,7 +99,7 @@ object TokenLexer extends RegexParsers {
         for {
           indentedTokens <- processIndentation(tokens.drop(1), newIndentStack)
         } yield {
-          normalizeIndentationAndDelimiters(newTokens, indentedTokens)
+          normalizeIndentation(newTokens, indentedTokens)
         }
       }
     }
@@ -113,11 +114,10 @@ object TokenLexer extends RegexParsers {
   // They "cancel" each other out, if no tokens exist in between them
   // We know newTokens are all of the same type, so removing from the front is fine
   @tailrec
-  def normalizeIndentationAndDelimiters(newTokens: List[Token], indentedTokens: List[Token]): List[Token] = {
+  def normalizeIndentation(newTokens: List[Token], indentedTokens: List[Token]): List[Token] = {
     (newTokens, indentedTokens) match {
-      case (Delimit() :: restNewTokens, Delimit() :: restTokens) => normalizeIndentationAndDelimiters(restNewTokens, restTokens)
-      case (Outdent() :: restNewTokens, Indent() :: restTokens) => normalizeIndentationAndDelimiters(restNewTokens, Delimit() :: restTokens)
-      case (Indent() :: restNewTokens, Outdent() :: restTokens) => normalizeIndentationAndDelimiters(restNewTokens, Delimit() :: restTokens)
+      case (Outdent() :: restNewTokens, Indent() :: restTokens) => normalizeIndentation(restNewTokens, Delimit() :: restTokens)
+      case (Indent() :: restNewTokens, Outdent() :: restTokens) => normalizeIndentation(restNewTokens, Delimit() :: restTokens)
       case (otherNewTokens, indentedTokens) => otherNewTokens ++ indentedTokens
     }
   }

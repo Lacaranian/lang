@@ -39,7 +39,7 @@ object Interpreter {
 
   @tailrec
   def evaluateExpression(expr: Expression, context: Context): Term = expr match {
-    case TermExpression(term) => evaluateTerm(term, context)
+    case term: Term => evaluateTerm(term, context)
     case BlockExpression(definitions, expr) => {
       // The context and changes to it in this block, stay in this block (scoping)
       val bContext = blockContext(definitions, context)
@@ -53,15 +53,21 @@ object Interpreter {
     // Perhaps substitute a variable's value in this context for its term
     case v @ VariableTerm(Variable(name)) => context.symbolTable.getOrElse(name, v)
     case l: Abstraction => l
-    case Application(applyingTerm, appliedTerm) => applyingTerm match {
-      case Abstraction(paramVariable, lambdaBody) => {
-        val contextWithLambdaParamFree = context.copy(symbolTable = context.symbolTable - paramVariable.identifier)
-        val substitutedLambdaBody = substituteFreeOccurrencesInExpression(paramVariable, lambdaBody, appliedTerm, contextWithLambdaParamFree)
+    case Application(applyingExpr, appliedExpr) => {
+      // Strict style, evaluate both the halves before applying them
+      val applyingTerm = evaluateExpression(applyingExpr, context)
+      val appliedTerm = evaluateExpression(appliedExpr, context)
 
-        // β-reduction
-        evaluateExpression(substitutedLambdaBody, context)
+      applyingTerm match {
+        case Abstraction(paramVariable, lambdaBody) => {
+          val contextWithLambdaParamFree = context.copy(symbolTable = context.symbolTable - paramVariable.identifier)
+          val substitutedLambdaBody = substituteFreeOccurrencesInExpression(paramVariable, lambdaBody, appliedTerm, contextWithLambdaParamFree)
+
+          // β-reduction
+          evaluateExpression(substitutedLambdaBody, context)
+        }
+        case at => Application(at, appliedTerm)
       }
-      case _ => Application(evaluateTerm(applyingTerm, context), evaluateTerm(appliedTerm, context))
     }
   }
 
@@ -92,8 +98,8 @@ object Interpreter {
     }
     case l: Abstraction => l // variable is not "free" in the lambda
     case Application(left, right) => Application(
-      substituteFreeOccurrencesInTerm(variable, left, replaceWith, context),
-      substituteFreeOccurrencesInTerm(variable, right, replaceWith, context)
+      substituteFreeOccurrencesInExpression(variable, left, replaceWith, context),
+      substituteFreeOccurrencesInExpression(variable, right, replaceWith, context)
     )
   }
 
@@ -103,7 +109,7 @@ object Interpreter {
     replaceWith: Term,
     context: Context
   ): Expression = expression match {
-    case TermExpression(term) => TermExpression(substituteFreeOccurrencesInTerm(variable, term, replaceWith, context))
+    case term: Term => substituteFreeOccurrencesInTerm(variable, term, replaceWith, context)
     case BlockExpression(definitions, finalTerm) => {
       val (substitutedDefinitions, newContext) = definitions.foldLeft(List.empty[Definition] -> context) {
         case ((curDefs, curContext), d@Definition(name, body)) if name == variable || context.symbolTable.contains(name.identifier) => {
@@ -130,9 +136,9 @@ object Interpreter {
     // Variables are free as long as they aren't bound in the context
     case VariableTerm(v @ Variable(name)) => Set(v)
     // Abstractions have all free variables of the body, minus the parameter (which binds it)
-    case Abstraction(param, body)              => freeVariablesOfExpression(body, context) - param
+    case Abstraction(param, body)         => freeVariablesOfExpression(body, context) - param
     // Applications have all the free variables of both terms
-    case Application(left, right)         => freeVariablesOfTerm(left, context) ++ freeVariablesOfTerm(right, context)
+    case Application(left, right)         => freeVariablesOfExpression(left, context) ++ freeVariablesOfExpression(right, context)
   }).filterNot(v =>
     // Anything bound in the context is not free
     context.symbolTable.contains(v.identifier)
@@ -140,7 +146,7 @@ object Interpreter {
 
 
   def freeVariablesOfExpression(expression: Expression, context: Context): Set[Variable] = expression match {
-    case TermExpression(term) => freeVariablesOfTerm(term, context)
+    case term: Term => freeVariablesOfTerm(term, context)
     case BlockExpression(definitions, finalExpr) => {
       // In BlockExpressions, variables appear free until they are bound in a definition
       // From the outside, we only consider a variable fully free if it is never bound this way

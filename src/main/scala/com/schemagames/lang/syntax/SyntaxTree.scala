@@ -12,17 +12,16 @@ object SyntaxTree {
   case class Variable(identifier: String) extends Positional
 
   sealed trait Expression extends SyntaxTree
-  case class TermExpression(term: Term) extends Expression
   case class BlockExpression(definitions: List[Definition], finalExpr: Expression) extends Expression
 
-  sealed trait Term extends Positional
+  sealed trait Term extends Expression
   case class VariableTerm(variable: Variable) extends Term
 
   sealed trait Constant extends Term
   case class StringConstant(str: String) extends Constant
   case class NumberConstant(num: Int) extends Constant
 
-  case class Application(applyingTerm: Term, appliedTerm: Term) extends Term
+  case class Application(applyingTerm: Expression, appliedTerm: Expression) extends Term
   case class Abstraction(variable: Variable, expression: Expression) extends Term
 
 

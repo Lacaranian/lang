@@ -1,7 +1,7 @@
 package com.schemagames.lang.parser
 
 import com.schemagames.lang.TestPrograms
-import com.schemagames.lang.syntax.SyntaxTree.{Application, Definition, TermExpression, Variable, VariableTerm}
+import com.schemagames.lang.syntax.SyntaxTree.{Application, Definition, Variable, VariableTerm}
 import org.scalatest._
 import org.scalatest.matchers.should.Matchers
 
@@ -18,10 +18,9 @@ class ASTParserSpec extends FlatSpec with Matchers {
     val results = ASTParser(tokens)
 
     results shouldBe a [Right[_, _]]
-
     val Right(ast) = results
 
-    ast.head should be (Definition(Variable("test"), TermExpression(
+    ast.head should be (Definition(Variable("test"), 
       Application(
         Application(
           Application(
@@ -32,6 +31,13 @@ class ASTParserSpec extends FlatSpec with Matchers {
         ),
         VariableTerm(Variable("d"))
       )
-    )))
+    ))
+  }
+
+  it should "parse abstraction and application terms" in {
+    val Right(tokens) = TokenLexer(TestPrograms.abstractionAndApplicationTest)
+    val results = ASTParser(tokens)
+
+    results shouldBe a [Right[_, _]]
   }
 }
