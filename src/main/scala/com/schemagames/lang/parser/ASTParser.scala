@@ -1,8 +1,10 @@
 package com.schemagames.lang.parser
 
-import com.schemagames.lang.syntax.{SyntaxTree, Token, Tokens}
+import com.schemagames.lang.ASTParserError
+import com.schemagames.lang.compiler.Phase
+import com.schemagames.lang.syntax.{Token, Tokens, UntypedAST}
 import com.schemagames.lang.syntax.Tokens._
-import com.schemagames.lang.syntax.SyntaxTree._
+import com.schemagames.lang.syntax.UntypedAST._
 
 import scala.util.parsing.combinator.Parsers
 import scala.util.parsing.input.{Position, Reader}
@@ -23,8 +25,8 @@ class TokenReader(tokens: Seq[Token]) extends Reader[Token] {
 }
 
 
-object ASTParser extends Parsers {
-  def apply(tokens: List[Token]): Either[ASTParserError, List[SyntaxTree]] = {
+case object ASTParser extends Parsers with Phase[List[Token], List[UntypedAST], ASTParserError] {
+  def apply(tokens: List[Token]): Either[ASTParserError, List[UntypedAST]] = {
     val reader = new TokenReader(tokens)
 
     ast(reader) match {
@@ -33,7 +35,7 @@ object ASTParser extends Parsers {
     }
   }
 
-  def ast: Parser[List[SyntaxTree]] = phrase(rep1(definition))
+  def ast: Parser[List[UntypedAST]] = phrase(rep1(definition))
 
   override type Elem = Token
 

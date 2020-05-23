@@ -6,6 +6,8 @@ scalaVersion := "2.13.2"
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
 
+scalacOptions ++= Seq("-deprecation")
+
 // Testing
 libraryDependencies += "org.scalactic" %% "scalactic" % "3.1.1"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.1" % "test"

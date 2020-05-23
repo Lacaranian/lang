@@ -3,9 +3,10 @@ package com.schemagames.lang.parser
 import com.schemagames.lang.TestPrograms
 import com.schemagames.lang.syntax.Tokens._
 import org.scalatest._
+import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class TokenLexerSpec extends FlatSpec with Matchers {
+class TokenLexerSpec extends AnyFlatSpec with Matchers {
 
   "The TokenLexer" should "be able to turn a valid input program into tokens" in {
     val results = TokenLexer(TestPrograms.generalTestProgram)

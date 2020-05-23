@@ -1,8 +1,9 @@
 package com.schemagames.lang.interpreter
 
-import com.schemagames.lang.parser.InterpreterError
-import com.schemagames.lang.syntax.SyntaxTree
-import com.schemagames.lang.syntax.SyntaxTree._
+import com.schemagames.lang.InterpreterError
+import com.schemagames.lang.compiler.Phase
+import com.schemagames.lang.syntax.UntypedAST
+import com.schemagames.lang.syntax.UntypedAST._
 
 import scala.annotation.tailrec
 
@@ -10,8 +11,8 @@ case class Context(
   symbolTable: Map[String, Term] = Map()
 )
 
-object Interpreter {
-  def apply(ast: List[SyntaxTree]): Either[InterpreterError, ()] = {
+case object Interpreter extends Phase[List[UntypedAST], UntypedAST.Term, InterpreterError] {
+  def apply(ast: List[UntypedAST]): Either[InterpreterError, UntypedAST.Term] = {
     // Build a symbol table from the AST, evaluating expressions as it goes
     val completeContext = ast.foldLeft(Context()){ case (context, syntaxTree) => syntaxTree match {
       case definition: Definition => recordDefinition(definition, context)
@@ -22,8 +23,7 @@ object Interpreter {
     }}
 
     completeContext.symbolTable.get("main").map(mainTerm => {
-      println(mainTerm)
-      Right(())
+      Right(mainTerm)
     }).getOrElse({
       Left(InterpreterError("No main definition found"))
     })

@@ -1,5 +1,7 @@
 package com.schemagames.lang.parser
 
+import com.schemagames.lang.TokenLexerError
+import com.schemagames.lang.compiler.Phase
 import com.schemagames.lang.syntax.{IndentationType, NoIndent, Spaces, Tabs, Token}
 import com.schemagames.lang.syntax.Tokens._
 
@@ -8,7 +10,7 @@ import scala.util.matching.Regex
 import scala.util.parsing.combinator.RegexParsers
 import scala.util.parsing.combinator.token.Tokens
 
-object TokenLexer extends RegexParsers {
+case object TokenLexer extends RegexParsers with Phase[String, List[Token], TokenLexerError] {
   def apply(code: String): Either[TokenLexerError, List[Token]] = {
     parse(tokens, code) match {
       case NoSuccess(msg, next) => Left(TokenLexerError(next.pos, msg))
@@ -38,7 +40,7 @@ object TokenLexer extends RegexParsers {
 
   def identifier: Parser[Identifier] = positioned { "[a-zA-Z_][a-zA-Z0-9_]*".r ^^ { str => Identifier(str) } }
 
-  def stringLiteral: Parser[StringLiteral] = positioned { """"[^"]+"""".r ^^ (str => StringLiteral(str)) }
+  def stringLiteral: Parser[StringLiteral] = positioned { """"[^"]+"""".r ^^ (str => StringLiteral(str.substring(1, str.length() - 1))) }
 
   def numLiteral: Parser[NumLiteral] = positioned { """[\d]+""".r ^^ (str => NumLiteral(str)) }
 

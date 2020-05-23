@@ -1,4 +1,4 @@
-package com.schemagames.lang.parser
+package com.schemagames.lang
 
 import scala.util.parsing.input.Position
 

@@ -54,5 +54,7 @@ object TestPrograms {
       |def KI = K I
       |
       |def test = KI "true" "false"
+      |
+      |def main = test
       |""".stripMargin
 }

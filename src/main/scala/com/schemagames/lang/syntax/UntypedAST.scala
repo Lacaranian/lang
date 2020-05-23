@@ -4,14 +4,14 @@ import com.schemagames.lang.interpreter.Context
 
 import scala.util.parsing.input.Positional
 
-sealed trait SyntaxTree extends Positional
+sealed trait UntypedAST extends Positional
 
-object SyntaxTree {
-  case class Definition(variable: Variable, expression: Expression) extends SyntaxTree
+object UntypedAST {
+  case class Definition(variable: Variable, expression: Expression) extends UntypedAST
 
   case class Variable(identifier: String) extends Positional
 
-  sealed trait Expression extends SyntaxTree
+  sealed trait Expression extends UntypedAST
   case class BlockExpression(definitions: List[Definition], finalExpr: Expression) extends Expression
 
   sealed trait Term extends Expression

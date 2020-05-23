@@ -1,11 +1,12 @@
 package com.schemagames.lang.parser
 
 import com.schemagames.lang.TestPrograms
-import com.schemagames.lang.syntax.SyntaxTree.{Application, Definition, Variable, VariableTerm}
+import com.schemagames.lang.syntax.UntypedAST.{Application, Definition, Variable, VariableTerm}
 import org.scalatest._
+import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class ASTParserSpec extends FlatSpec with Matchers {
+class ASTParserSpec extends AnyFlatSpec with Matchers {
   "The ASTParser" should "be able to turn a valid token stream into an an abstract syntax tree" in {
     val Right(tokens) = TokenLexer(TestPrograms.generalTestProgram)
     val results = ASTParser(tokens)

@@ -1,7 +1,6 @@
 package com.schemagames.lang
 
-import com.schemagames.lang.interpreter.Interpreter
-import com.schemagames.lang.parser.{ASTParser, TokenLexer}
+import com.schemagames.lang.compiler.{Compiler, DefaultCompiler, RunInfo}
 
 object test {
   val n1 =
@@ -28,14 +27,21 @@ object test {
 
 object Main {
   def main(args: Array[String]): Unit = {
-    val result = for {
-      tokens <- TokenLexer(test.n1)
-      _ = println(tokens)
-      ast <- ASTParser(tokens)
-      _ = println(ast)
-      result <- Interpreter(ast)
-    } yield result
+    val resultCompiler = DefaultCompiler.apply(test.n1)
 
-    println(result)
+    resultCompiler.context.pastRuns.foreach{ case (runID, RunInfo(input, phaseResults)) => {
+      println("Input: \n" + input)
+
+      phaseResults.foreach{ case (phaseKey, result) => {
+        println("Phase " + phaseKey + ": ")
+
+        result match {
+          case Left(error) => println(error)
+          case Right(success) => println(success)
+        }
+
+        println("")
+      }}
+    }}
   }
 }
