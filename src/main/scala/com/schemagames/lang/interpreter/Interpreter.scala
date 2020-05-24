@@ -30,38 +30,38 @@ case object Interpreter extends Phase[List[UntypedAST], UntypedAST.Term, Interpr
   }
 
   def recordDefinition(definition: Definition, context: Context): Context = {
-    val Definition(Variable(name), expr) = definition
+    val Definition(vt : VariableTerm, expr) = definition
 
     val term = evaluateExpression(expr, context)
 
-    context.copy(symbolTable = context.symbolTable + (name -> term))
+    context.copy(symbolTable = context.symbolTable + (vt.identifier -> term))
   }
 
   @tailrec
   def evaluateExpression(expr: Expression, context: Context): Term = expr match {
     case term: Term => evaluateTerm(term, context)
-    case BlockExpression(definitions, expr) => {
+    case be: BlockExpression => {
       // The context and changes to it in this block, stay in this block (scoping)
-      val bContext = blockContext(definitions, context)
+      val bContext = blockContext(be.definitions, context)
 
-      evaluateExpression(expr, bContext)
+      evaluateExpression(be.finalExpr, bContext)
     }
   }
 
   def evaluateTerm(term: Term, context: Context): Term = term match {
     case c: Constant => c
     // Perhaps substitute a variable's value in this context for its term
-    case v @ VariableTerm(Variable(name)) => context.symbolTable.getOrElse(name, v)
+    case v: VariableTerm => context.symbolTable.getOrElse(v.identifier, v)
     case l: Abstraction => l
-    case Application(applyingExpr, appliedExpr) => {
+    case app: Application => {
       // Strict style, evaluate both the halves before applying them
-      val applyingTerm = evaluateExpression(applyingExpr, context)
-      val appliedTerm = evaluateExpression(appliedExpr, context)
+      val applyingTerm = evaluateExpression(app.applyingTerm, context)
+      val appliedTerm = evaluateExpression(app.appliedTerm, context)
 
       applyingTerm match {
-        case Abstraction(paramVariable, lambdaBody) => {
-          val contextWithLambdaParamFree = context.copy(symbolTable = context.symbolTable - paramVariable.identifier)
-          val substitutedLambdaBody = substituteFreeOccurrencesInExpression(paramVariable, lambdaBody, appliedTerm, contextWithLambdaParamFree)
+        case abs: Abstraction => {
+          val contextWithLambdaParamFree = context.copy(symbolTable = context.symbolTable - abs.variable.identifier)
+          val substitutedLambdaBody = substituteFreeOccurrencesInExpression(abs.variable, abs.expression, appliedTerm, contextWithLambdaParamFree)
 
           // β-reduction
           evaluateExpression(substitutedLambdaBody, context)
@@ -72,46 +72,46 @@ case object Interpreter extends Phase[List[UntypedAST], UntypedAST.Term, Interpr
   }
 
   def substituteFreeOccurrencesInTerm(
-    variable: Variable,
+    variable: VariableTerm,
     term: Term,
     replaceWith: Term,
     context: Context
   ): Term = term match {
     case c: Constant => c
-    case VariableTerm(termVariable) if termVariable == variable => replaceWith
+    case vt: VariableTerm if vt == variable => replaceWith
     case v: VariableTerm => v
-    case Abstraction(paramVariable, lambdaBody) if paramVariable != variable => {
-      val innerLambdaContext = context.copy(symbolTable = context.symbolTable - paramVariable.identifier)
+    case abs: Abstraction if abs.variable != variable => {
+      val innerLambdaContext = context.copy(symbolTable = context.symbolTable - abs.variable.identifier)
 
       // Ensure paramVariable is not in the free variables of replaceWith (capture avoiding substitution)
       val replaceFreeVars = freeVariablesOfTerm(replaceWith, context)
-      val safeReplaceWith = if(replaceFreeVars(paramVariable)) {
-        val safeParamVar = Variable(paramVariable.identifier + "'") // Just prime it (is this enough?)
-        substituteFreeOccurrencesInTerm(paramVariable, replaceWith, VariableTerm(safeParamVar), context)
+      val safeReplaceWith = if(replaceFreeVars(abs.variable)) {
+        val safeParamVar = VariableTerm(abs.variable.identifier + "'") // Just prime it (is this enough?)
+        substituteFreeOccurrencesInTerm(abs.variable, replaceWith, safeParamVar, context)
       } else {
         replaceWith
       }
 
-      val substitutedBody = substituteFreeOccurrencesInExpression(variable, lambdaBody, safeReplaceWith, innerLambdaContext)
+      val substitutedBody = substituteFreeOccurrencesInExpression(variable, abs.expression, safeReplaceWith, innerLambdaContext)
 
-      Abstraction(paramVariable, substitutedBody)
+      Abstraction(abs.variable, substitutedBody)
     }
     case l: Abstraction => l // variable is not "free" in the lambda
-    case Application(left, right) => Application(
-      substituteFreeOccurrencesInExpression(variable, left, replaceWith, context),
-      substituteFreeOccurrencesInExpression(variable, right, replaceWith, context)
+    case app: Application => Application(
+      substituteFreeOccurrencesInExpression(variable, app.applyingTerm, replaceWith, context),
+      substituteFreeOccurrencesInExpression(variable, app.appliedTerm, replaceWith, context)
     )
   }
 
   def substituteFreeOccurrencesInExpression(
-    variable: Variable,
+    variable: VariableTerm,
     expression: Expression,
     replaceWith: Term,
     context: Context
   ): Expression = expression match {
     case term: Term => substituteFreeOccurrencesInTerm(variable, term, replaceWith, context)
-    case BlockExpression(definitions, finalTerm) => {
-      val (substitutedDefinitions, newContext) = definitions.foldLeft(List.empty[Definition] -> context) {
+    case blockExpr: BlockExpression => {
+      val (substitutedDefinitions, newContext) = blockExpr.definitions.foldLeft(List.empty[Definition] -> context) {
         case ((curDefs, curContext), d@Definition(name, body)) if name == variable || context.symbolTable.contains(name.identifier) => {
           // - This definition shadows the variable from here on out, so it is no longer free, or
           // - A previous definition in this scope shadowed the variable, so it is no longer free
@@ -125,34 +125,34 @@ case object Interpreter extends Phase[List[UntypedAST], UntypedAST.Term, Interpr
           (curDefs :+ substitutedDefinition, recordDefinition(substitutedDefinition, curContext))
         }
       }
-      val substitutedFinalTerm = substituteFreeOccurrencesInExpression(variable, finalTerm, replaceWith, newContext)
+      val substitutedFinalTerm = substituteFreeOccurrencesInExpression(variable, blockExpr.finalExpr, replaceWith, newContext)
 
       BlockExpression(substitutedDefinitions, substitutedFinalTerm)
     }
   }
 
-  def freeVariablesOfTerm(term: Term, context: Context): Set[Variable] = (term match {
-    case _: Constant                      => Set.empty[Variable]
+  def freeVariablesOfTerm(term: Term, context: Context): Set[VariableTerm] = (term match {
+    case _: Constant         => Set.empty[VariableTerm]
     // Variables are free as long as they aren't bound in the context
-    case VariableTerm(v @ Variable(name)) => Set(v)
+    case v: VariableTerm     => Set(v)
     // Abstractions have all free variables of the body, minus the parameter (which binds it)
-    case Abstraction(param, body)         => freeVariablesOfExpression(body, context) - param
+    case abs: Abstraction    => freeVariablesOfExpression(abs.expression, context) - abs.variable
     // Applications have all the free variables of both terms
-    case Application(left, right)         => freeVariablesOfExpression(left, context) ++ freeVariablesOfExpression(right, context)
+    case app: Application    => freeVariablesOfExpression(app.applyingTerm, context) ++ freeVariablesOfExpression(app.appliedTerm, context)
   }).filterNot(v =>
     // Anything bound in the context is not free
     context.symbolTable.contains(v.identifier)
   )
 
 
-  def freeVariablesOfExpression(expression: Expression, context: Context): Set[Variable] = expression match {
-    case term: Term => freeVariablesOfTerm(term, context)
-    case BlockExpression(definitions, finalExpr) => {
+  def freeVariablesOfExpression(expression: Expression, context: Context): Set[VariableTerm] = expression match {
+    case term: Term                 => freeVariablesOfTerm(term, context)
+    case blockExpr: BlockExpression => {
       // In BlockExpressions, variables appear free until they are bound in a definition
       // From the outside, we only consider a variable fully free if it is never bound this way
-      val bContext: Context = blockContext(definitions, context)
+      val bContext: Context = blockContext(blockExpr.definitions, context)
 
-      freeVariablesOfExpression(finalExpr, bContext)
+      freeVariablesOfExpression(blockExpr.finalExpr, bContext)
     }
   }
 

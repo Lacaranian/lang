@@ -23,7 +23,7 @@ case object TokenLexer extends RegexParsers with Phase[String, List[Token], Toke
   override val whiteSpace: Regex = "[ \t\r\f]+".r
 
   def tokens: Parser[List[Token]] = phrase(rep1(
-    assign | delimiter | openBlock | closeBlock | openExpr | closeExpr | `def` | lambda | arrow |
+    assign | delimiter | openBlock | closeBlock | openExpr | closeExpr | `def` | lambda | arrow | colon |
       numLiteral | stringLiteral | identifier | newlineWithIndentation
   )) >> { rawTokens => {
     val tokenResult = for {
@@ -53,6 +53,7 @@ case object TokenLexer extends RegexParsers with Phase[String, List[Token], Toke
   def delimiter: Parser[Delimit] = positioned(";" ^^ (_ => Delimit()))
   def lambda: Parser[Lambda] = positioned(("\\" | "λ") ^^ (_ => Lambda()))
   def arrow: Parser[Arrow] = positioned("->" ^^ (_ => Arrow()))
+  def colon: Parser[Colon] = positioned(":" ^^ (_ => Colon()))
 
   def newlineWithIndentation: Parser[Indentation] = positioned(indentByMixedWhitespace)
   def indentByMixedWhitespace: Parser[Indentation] = "\n[ \t]*".r >> { str => // Mixed whitespace - this is a failure!

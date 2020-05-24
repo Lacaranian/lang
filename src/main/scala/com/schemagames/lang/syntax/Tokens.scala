@@ -18,6 +18,7 @@ object Tokens {
   case class Delimit()     extends Token // ; or newlines with equal indentation (outdents are also semantically delimiters)
   case class Lambda()      extends Token // \ or λ
   case class Arrow()       extends Token // ->
+  case class Colon()       extends Token // :
 
   case class Indentation(num: Int, indentationType: IndentationType) extends Token // \n plus some number of spaces/tabs...
   case class Indent()         extends Token // ... greater then the previous significant line's (converts to nothing)

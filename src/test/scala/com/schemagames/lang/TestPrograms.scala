@@ -57,4 +57,14 @@ object TestPrograms {
       |
       |def main = test
       |""".stripMargin
+
+  val annotatedWithTypesTest =
+    """def thing: String = "thing"
+      |
+      |def strIdentity: (\String -> String) = \str -> str
+      |
+      |def inferred = strIdentity thing
+      |
+      |def main: String = strIdentity thing
+      |""".stripMargin
 }

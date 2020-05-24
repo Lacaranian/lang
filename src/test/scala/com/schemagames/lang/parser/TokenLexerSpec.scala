@@ -71,4 +71,16 @@ class TokenLexerSpec extends AnyFlatSpec with Matchers {
       remainingTokens.headOption should not be (Some(Delimit()))
     }
   }
+
+  it should "recognize colons for type annotations" in {
+    val results = TokenLexer(TestPrograms.annotatedWithTypesTest)
+    results shouldBe a [Right[_,_]]
+
+    val Right(tokens) = results
+
+    tokens.count{
+      case Colon() =>true
+      case _ => false
+    } should be (3)
+  }
 }

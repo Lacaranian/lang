@@ -40,12 +40,15 @@ case object ASTParser extends Parsers with Phase[List[Token], List[UntypedAST], 
   override type Elem = Token
 
   def definition: Parser[Definition] = positioned {
-    (Def() ~ variable ~ Assign() ~ expressions ~ (Delimit() | eoi)) ^^ {
+    (Def() ~ variableTerm ~ Assign() ~ expressions ~ (Delimit() | eoi)) ^^ {
       case _ ~ variable ~ _ ~ expr ~ _ => Definition(variable, expr)
     }
   }
-  def variable: Parser[Variable] = positioned(identifier ^^ (id => Variable(id.name)))
+  def variableTerm: Parser[VariableTerm] = positioned(identifier ~ opt(annotation) ^^ {
+    case id ~ optAnnotation => VariableTerm(id.name, optAnnotation)
+  })
   private def identifier: Parser[Tokens.Identifier] = positioned(accept("identifier", { case id @ Identifier(_) => id }))
+  def annotation: Parser[Annotation] = positioned(Colon() ~ expressions ^^ { case _ ~ annotExpr => Annotation(annotExpr) })
 
   def expressions: Parser[Expression] = positioned(rep1(blockExpression | groupedExpression | term) >> {
     case Nil             => failure("Got no expressions from a successful rep1 parser")
@@ -62,8 +65,7 @@ case object ASTParser extends Parsers with Phase[List[Token], List[UntypedAST], 
   })
   def term: Parser[Term] = positioned(lambdaTerm | variableTerm | literal)
 
-  def lambdaTerm: Parser[Abstraction] = positioned(Lambda() ~ variable ~ Arrow() ~ expressions ^^ { case _ ~ param ~ _ ~ expr => Abstraction(param, expr) })
-  def variableTerm: Parser[VariableTerm] = positioned(variable ^^ (variable => VariableTerm(variable)))
+  def lambdaTerm: Parser[Abstraction] = positioned(Lambda() ~ variableTerm ~ Arrow() ~ expressions ^^ { case _ ~ param ~ _ ~ expr => Abstraction(param, expr) })
 
   def literal: Parser[Constant] = positioned(stringLiteral | numLiteral)
   def stringLiteral: Parser[StringConstant] = positioned(accept("string constant", { case StringLiteral(str) => StringConstant(str) }))

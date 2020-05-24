@@ -1,7 +1,7 @@
 package com.schemagames.lang.parser
 
 import com.schemagames.lang.TestPrograms
-import com.schemagames.lang.syntax.UntypedAST.{Application, Definition, Variable, VariableTerm}
+import com.schemagames.lang.syntax.UntypedAST.{Application, Definition, VariableTerm}
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -21,22 +21,29 @@ class ASTParserSpec extends AnyFlatSpec with Matchers {
     results shouldBe a [Right[_, _]]
     val Right(ast) = results
 
-    ast.head should be (Definition(Variable("test"), 
+    ast.head should be (Definition(VariableTerm("test"),
       Application(
         Application(
           Application(
-            VariableTerm(Variable("a")),
-            VariableTerm(Variable("b"))
+            VariableTerm("a"),
+            VariableTerm("b")
           ),
-          VariableTerm(Variable("c"))
+          VariableTerm("c")
         ),
-        VariableTerm(Variable("d"))
+        VariableTerm("d")
       )
     ))
   }
 
   it should "parse abstraction and application terms" in {
     val Right(tokens) = TokenLexer(TestPrograms.abstractionAndApplicationTest)
+    val results = ASTParser(tokens)
+
+    results shouldBe a [Right[_, _]]
+  }
+
+  it should "parse annotated variables" in {
+    val Right(tokens) = TokenLexer(TestPrograms.annotatedWithTypesTest)
     val results = ASTParser(tokens)
 
     results shouldBe a [Right[_, _]]
